@@ -1,298 +1,384 @@
-# **implementation-plan.md**
+implementation-plan.md — security & ops hardened
+Purpose
 
-## **Purpose**
+A step-by-step, phased build plan that turns the master specification into a stable, secure, and scalable product with minimal bugs. Phases are broken into single-responsibility micro-tasks so developers can pick tasks and deliver predictable results. Priorities: security-by-design, scalability, simplicity, predictable QA, cost controls, and a fast end-to-end MVP.
 
-A step-by-step, phased build plan that turns the master specification into a stable, scalable product with minimal bugs. Each phase is split into small, mindless micro-tasks (actionable items a developer can pick up and complete). Priorities: **scalability, simplicity, predictable QA, and delivering an end-to-end MVP quickly.**
+Principles (short, mandatory list)
 
----
+Security-first SDLC: threat models, SAST/SCA in CI, IaC reviews, mandatory code review.
 
-## **Principles for this plan**
+Ship small + test often: E2E pipeline early, follow with hardening sprints.
 
-* **Ship small, test often.** Deliver an end-to-end render pipeline early (MVP) then iterate UX/features.
+Single responsibility tasks: one job = one test.
 
-* **Single responsibility tasks.** Each task does one thing and is independently testable.
+Progressive enhancement: FFmpeg fallback first; Fal.ai features layered on top.
 
-* **Progressive enhancement.** Start with reliable FFmpeg fallbacks; add fancy Fal.ai features once stable.
+Automated acceptance: unit + integration + smoke + nightly E2E.
 
-* **Automate acceptance.** Every deliverable has an acceptance checklist (unit, integration, manual workflow test).
+Cost-aware defaults: 480p preview, cheapest models by default, plan quotas.
 
-* **Cost-aware defaults.** Cheap models / 480p preview by default; tiered upgrades for Plus/Pro.
+Fal.ai compliance: always reference Fal.ai docs before using a model.
 
-* **Follow Fal.ai engineering rules** — confirm model docs before integration.
+Phase 0 — Setup & Foundations (1–2 sprints)
 
----
+Objective: bootstrap infra, security controls, and developer ergonomics so teams can work in parallel securely.
 
-## **Phase 0 — Setup & Foundations (1–2 sprints)**
+Micro-tasks (exact)
 
-Objective: Project bootstrapping so teams can work in parallel without friction.
+Repo & monorepo structure
 
-Micro-tasks
+Create mono-repo: web/ (Next.js), api/ (serverless), workers/ (render), infra/ (IaC).
 
-* Repo setup: mono-repo with `web/` (Next.js), `api/` (serverless), `workers/` (render), infra IaC skeleton.
+Enforce branch protection and commit signing on main branches.
 
-* Provision dev accounts: Clerk, Stripe (test), Supabase dev project, Backblaze test bucket, Vercel.
+IaC & environments
 
-* Environment & secrets: central vault for API keys (dev/staging/prod).
+Write Terraform/Pulumi skeleton for prod/staging/dev.
 
-* CI pipeline: run lint / tests / build; deploy to staging on merge to main.
+Define least-privilege IAM roles for services.
 
-* Baseline DB schema: seed Supabase with `users`, `projects`, `scripts`, `scenes`, `images`, `video_clips`, `renders`, `usage_logs`. (Use the conceptual model from master spec.)
+Add automated IaC plan checks and drift detection in CI.
 
-* Basic RBAC & RLS: Supabase RLS policy to ensure user isolation.
+Secrets & config
+
+Provision Secrets Manager (Vault/AWS Secrets Manager/Vercel secrets).
+
+Establish key rotation policy and human-access audits.
+
+Accounts & dev provisioning
+
+Create dev/staging projects: Clerk (dev keys), Stripe (test), Supabase (dev), Backblaze (test), Vercel.
+
+Lock down prod keys to CI/CD and admin-only consoles.
+
+Baseline DB schema & RLS
+
+Seed core tables: users, projects, scripts, scenes, images, video_clips, renders, usage_logs, audit_logs.
+
+Implement Supabase row-level security (RLS) policies; test them thoroughly.
+
+CI/CD & security gates
+
+CI: lint, test, SAST (e.g., CodeQL), SCA (dependabot-like), build.
+
+Block merges on critical security findings.
+
+Canary deploy to staging; auto-rollback on health failures.
+
+Local dev ergonomics
+
+Provide docker-compose or local stubs for Fal.ai calls (mock server).
+
+Observability baseline
+
+Provision logging & monitoring (Sentry + Prometheus + central logs).
 
 Acceptance
 
-* Can run app locally and deploy to staging; DB migrations succeed; secrets load; Clerk \+ Stripe test keys accepted.
+Local app runs; staging deploys pass CI; secrets load; Clerk + Stripe test keys accepted; RLS blocking cross-user access in staging.
 
----
+Phase 1 — Core E2E MVP (2–4 sprints)
 
-## **Phase 1 — Core E2E MVP (2–4 sprints)**
+Objective: Build a secure end-to-end flow (Idea → 480p preview → final MP4) with baseline protections and cost controls.
 
-Objective: Build the end-to-end flow: idea → final MP4 (low-res preview \+ final render) with basic UI.
+Security-forward micro-tasks (ordered to minimize blast radius)
 
-High-level tasks and micro-tasks (ordered for low-bug delivery)
+Auth & Onboarding
 
-1. **Auth & User onboarding**
+Integrate Clerk; enable secure cookie flags, session TTLs.
 
-   * Integrate Clerk for signup/login/email verification.
+Implement optional 2FA for early adopters.
 
-   * Connect Clerk user to `users` table; plan field `plan` default `free`.
+Create users record mapping and plan defaults.
 
-   * Acceptance: signup → user row created; login returns session.
+Security tasks: verify Clerk webhooks signature validation; restrict API keys to origin domains.
 
-2. **Project CRUD \+ Dashboard**
+Acceptance: signup creates row; sessions valid; insecure tokens rejected.
 
-   * POST /api/projects, GET /api/projects, rename, duplicate, delete.
+Project CRUD + Dashboard
 
-   * UI: minimal dashboard grid with thumbnails, statuses.
+Build secure endpoints with server-side auth checks.
 
-   * Acceptance: Create project and view it in dashboard.
+DB queries must include user_id filter; test RLS blocking.
 
-3. **Script generation (Fal.ai wrapper)**
+Acceptance: create/read/update/delete works only for owner accounts.
 
-   * Implement `/api/script` endpoint that will POST to Fal.ai OpenRouter.
+Script generation (Fal.ai wrapper)
 
-   * Local mock mode: return deterministic script for offline dev.
+Endpoint /api/script routes through a model integration layer that:
 
-   * UI: "Generate script" \+ editable textarea \+ versioning metadata.
+sanitizes inputs (strip HTML/control chars),
 
-   * Acceptance: Script generate → persisted `scripts` row.
+enforces per-user rate limits,
 
-4. **Scene/storyboard generation**
+logs request hash and model meta to usage_logs.
 
-   * `/api/scenes` endpoint (uses local rule-based generator for MVP or Fal.ai if available).
+Provide mock mode for offline dev.
 
-   * UI: continuous-scroll scenes list with editable narration, image prompt fields.
+Acceptance: scripts persist; usage logs include request hash and cost estimate.
 
-   * Acceptance: scenes saved and editable.
+Scene / Storyboard generation
 
-5. **Image generation (basic)**
+/api/scenes with edit/save and strict input validation.
 
-   * `/api/images` endpoint: integrate cheapest Fal.ai image model and provide fallback placeholder images.
+Security tasks: detect and redact PII where flagged; mark redaction_flags in DB.
 
-   * Store image metadata in `images` and upload to Backblaze.
+Acceptance: scenes editable and validated.
 
-   * UI: image results carousel, select/replace, versioning.
+Image generation (basic)
 
-   * Acceptance: generated image appears, persisted, accessible by signed URL.
+/api/images calls Fal.ai (cheapest model) through integration layer.
 
-6. **Clip generation (basic)**
+Store artifacts in Backblaze via server-side upload; return short-lived signed URLs.
 
-   * `/api/clips` endpoint: request Fal.ai clip model for scenes; if model lacks feature, generate a placeholder static clip (image→video using FFmpeg).
+Persist checksums and encryption key identifiers with each image.
 
-   * Store in Backblaze; record `video_clips`.
+Acceptance: images accessible via signed URL only; checksum stored.
 
-   * Acceptance: scene → clip (3s) available.
+Clip generation (basic)
 
-7. **Transitions & FFmpeg assembly worker**
+/api/clips creates clips via Fal.ai or FFmpeg fallback.
 
-   * Start `workers/assemble` job that accepts job payload and runs FFmpeg assembly (concatenate \+ transition templates). Use fallback templates from spec.
+Workers run in isolated containers with CPU/memory limits and job timeouts.
 
-   * Implement queue (simple pub/sub or Supabase queue) and worker durable retries.
+Job metadata: idempotency token, request hash, user_id.
 
-   * Acceptance: submit render job → background worker runs → final MP4 saved to Backblaze.
+Acceptance: 3s clips available; worker logs job trace.
 
-8. **Music & Voice-over (MVP)**
+Transitions & FFmpeg assembly worker
 
-   * Music: Pixabay search UI \+ stream preview (no permanent download).
+Implement workers/assemble as isolated worker pool; use queue backed by Redis or Supabase queue.
 
-   * Voice-over: single continuous TTS track via fal-ai/elevenlabs (or mock in dev).
+Worker must: validate job, fetch signed assets, assemble via FFmpeg, upload final to Backblaze with encryption metadata.
 
-   * Acceptance: music & TTS combined into final render.
+Use dead-letter queue with alerting.
 
-9. **Captions**
+Acceptance: submit render job → worker completes → final MP4 saved with signed URL + cost estimate logged.
 
-   * Auto-generate captions using Fal.ai subtitle utility or accept upload; simple burn-in option via FFmpeg.
+Music & Voice-over
 
-   * Acceptance: captions editable and can be burned into render.
+Music: Pixabay streaming only; do not persist music unless user explicitly saves. Validate license metadata and store usage_terms.
 
-10. **Real-time updates**
+Voice-over: create TTS via Fal.ai/ELEVENLABS wrapper; log voice model meta and cost. Mask any user PII in TTS payloads if requested.
 
-    * Use Supabase Realtime or lightweight Pusher to stream render status updates to the UI.
+Acceptance: audio tracks included in final render; usage logged.
 
-    * Acceptance: user sees real-time progress events.
+Captions
 
-11. **Billing & plans (basic)**
+Auto-captions via Fal.ai subtitle model; saved as SRT; allow user edits.
 
-    * Stripe integration: Free/Plus/Pro product tiers; create checkout flow for Plus/Pro.
+Burn-in via FFmpeg with preset styles.
 
-    * Plan gating for model access and retention rules.
+Acceptance: captions editable and burn-in works; SRT downloadable.
 
-Quality & Testing Tasks
+Real-time updates
 
-* Create end-to-end tests that run script → render pipeline using mocked Fal.ai responses and a small FFmpeg test fixture.
+Use Supabase Realtime or Pusher with short-lived tokens per session.
 
-* Add job queue failure tests and retry logic tests.
+Limit payload size and frequency to prevent abuse.
 
-Acceptance Criteria (MVP)
+Acceptance: UI receives render progress and job events securely.
 
-* Full workflow from idea → final MP4 completes (480p preview \+ one 720p/1080p final) in staging.
+Billing & Plans
 
-* Users can edit at every step; versions persist.
+Integrate Stripe with hosted checkout, validate webhooks, persist subscription state.
 
-* Real-time progress visible.
+Enforce plan-based model gating server-side (not only UI).
 
-* Stripe and Clerk flows operate in test mode.
+Acceptance: plan upgrades applied server-side, model access toggled, retention policy enforced.
 
-* Admin panel reads usage logs.
+Quality & Testing
 
-Reference: Master spec details for models, transitions, and persistence.
+Build E2E tests that perform Idea→Render using mocked Fal.ai for reliability.
 
----
+Load test workers and queue under synthetic jobs; assert cost budget enforcement.
 
-## **Phase 2 — Stability, UX polish & Scale (2–3 sprints)**
+Add automated job-failure and retry tests.
 
-Objective: Harden system, reduce edge-case failures, refine UX.
+MVP Acceptance Criteria (tight)
+
+Full flow works in staging: Idea → 480p preview → final MP4 (720p/1080p optional).
+
+RLS prevents cross-user access in staging/prod.
+
+Media only accessible via signed, short-lived URLs; no public buckets.
+
+Usage logs exist and reconcile with model calls.
+
+Dead-letter queues and alerts for failing jobs.
+
+Billing flows tested in Stripe test mode.
+
+CI security scans pass; deployments use IaC plans.
+
+Phase 2 — Stability, UX polish & Scale (2–3 sprints)
+
+Objective: Harden the platform, reduce failures, improve UX, scale queues and cost controls.
+
+Tasks (security & scale)
+
+Model capabilities table
+
+Persist model capability metadata, rate limits, accepted params; fetch Fal.ai docs and cache URL per model (Fal.ai compliance).
+
+Transitions preview
+
+Pre-render low-res preview loops for hover; store as cached assets with TTL to avoid re-renders.
+
+Version history & rollback
+
+Implement immutable versioning with dedupe; allow rollback while preserving audit trails.
+
+Queue scaling
+
+Move queue to Redis/managed queue (e.g., RQ, Bull), add autoscaling rules for workers, and maintain concurrency limits per plan.
+
+Cost controls
+
+Implement per-user budgets, model-call budget alerts, and emergency throttling.
+
+Monitoring & observability
+
+Add SLOs, dashboards (render latency, job success rate, cost per minute), and alerts (pager duty).
+
+Robust UX & copy
+
+Friendly recovery flows, undo affordances, descriptive error pages that avoid technical exposure (design-tips aligned).
+
+Acceptance
+
+Under synthetic load, jobs scale and error rate < defined threshold; cost alerts trigger correctly.
+
+Phase 3 — Feature Expansion & Productivity (3+ sprints)
+
+Objective: Add collaboration, templates, brand kits; prepare for enterprise demands.
 
 Tasks
 
-* **Model capability awareness**: Build DB table for model capabilities (params, max size, rate limits). On integration, fetch and cache Fal.ai docs reference. (Required by Fal.ai rules.)
+Templates / Brand kits
 
-* **Advanced transitions preview**: Pre-render small preview loops for hover states.
+Persist kit assets with tenant-level encryption options.
 
-* **Version history UI**: timeline for each asset (image, clip) with rollback.
+Collaboration (roleless access)
 
-* **Queue scaling**: swap to Redis or managed queue for large loads; autoscaling worker pool.
+Implement simple share links or project-level sharing; maintain audit logs for every change.
 
-* **Cost controls**: throttle jobs for free tier, queue priority for Pro.
+Advanced audio
 
-* **Monitoring & observability**: add logs, Sentry, Prometheus-style metrics for job durations, costs.
+Beat-matching & auto-slicing — use deterministic, testable algorithms with bounded CPU cost.
 
-* **Robust error messaging**: friendly, kind microcopy and undo affordances per design-tips.
+Marketplace
 
-Acceptance
-
-* Jobs scale under synthetic load; error rate under threshold; UI shows clear recovery actions.
-
----
-
-## **Phase 3 — Feature Expansion & Productivity (3+ sprints)**
-
-Objective: Add collaborative workflows, templates, brand kits.
-
-Tasks (examples)
-
-* Templates library \+ one-click apply.
-
-* Collaboration: shared projects with simple roleless access (all users equal per your request).
-
-* Brand kits: persistent fonts, color overlays, intro/outro templates.
-
-* Advanced audio editing: beat-matching, auto-cut to music.
-
-* Marketplace for presets.
+Vetting workflow, content moderation, contractual terms, and revenue accounting.
 
 Acceptance
 
-* Feature toggles behind flags; user testing shows improved speed-to-video for non-technical users.
+Feature flags control rollout; user studies show reduced time-to-video for non-technical users.
 
----
+Team Roles & Recommended Rituals (secure-minded)
 
-## **Team Roles & Recommended Rituals**
+CTO / Tech Lead — security & architecture sign-off, Fal.ai compliance.
 
-Roles (small core team)
+Full-stack Engineer — secure Next.js patterns, server-side checks.
 
-* **CTO / Tech Lead** — architecture, trade-offs, Fal.ai compliance.
+Backend Engineer — worker orchestration, queue, FFmpeg encapsulation.
 
-* **Full-stack Engineer** (Next.js \+ Vercel) — UI \+ serverless endpoints.
+ML / Integration Engineer — Fal.ai modeling, capability mapping.
 
-* **Backend Engineer** (workers & FFmpeg) — workers, queues, storage.
+Product Designer — emotional UX, error messaging (design-tips).
 
-* **ML / Integration Engineer** — Fal.ai integrations, model capability mapping.
-
-* **Product Designer** — UI flows, motion, microcopy (follows `design-tips.md`).
-
-* **QA / SRE** — tests, monitoring, cost tracking.
+QA / SRE — test suite, monitoring, incident ops.
 
 Rituals
 
-* **Weekly triage** (30 min): flaky jobs, cost spikes, model errors.
+Weekly security triage (costs, open alerts).
 
-* **Bi-weekly usability sync** (30 min) with 3-user guerrilla tests (per Lovable principle P6).
+Bi-weekly 3-user guerrilla tests (Lovable P6).
 
-* **Daily standup** (15 min) for active sprints.
+Incident post-mortems required for P1 incidents.
 
-* **Monthly design review**: ensure emotional intent still holds.
+Timeline (recommended)
 
----
+Phase 0: 2–4 weeks (1–2 sprints)
 
-## **Timeline (suggested)**
+Phase 1 (MVP): 4–8 weeks (2–4 sprints)
 
-* Phase 0: 1–2 sprints (2–4 weeks)
+Phase 2: 4–6 weeks (2–3 sprints)
 
-* Phase 1 (MVP): 2–4 sprints (4–8 weeks)
+Phase 3: ongoing
 
-* Phase 2: 2–3 sprints (4–6 weeks)
+Adjust to team cadence and parallel workstreams.
 
-* Phase 3: ongoing
+Acceptance Criteria & QA Checklist (per deliverable)
 
-(Adjust sprints to your team cadence; these are conservative estimates.)
+For every endpoint/feature:
 
----
+Unit tests & integration tests present.
 
-## **Acceptance Criteria & QA Checklist (per deliverable)**
+DB migrations tested; RLS validated.
 
-For each endpoint/feature implement:
+Worker test job completes within expected time.
 
-* Unit tests for core logic.
+E2E manual workflow (Idea→Script→Preview→Render) passes nightly in staging.
 
-* Integration test for API → DB → storage.
+Cost estimate recorded for model calls in usage_logs.
 
-* Worker test job that completes within expected time for a small sample project.
+All deployments pass SAST/SCA gates.
 
-* Manual UX runthrough: create idea → generate script → generate images → assemble final render.
+Signed URL verification and expiration enforced.
 
-* Cost estimate recorded for model calls in `usage_logs`.
+Rollback & Recovery Plan
 
----
+Idempotent jobs: use idempotency tokens; detect duplicates.
 
-## **Rollback & Recovery Plan**
+Retries & DLQ: exponential backoff, bounded retries, then dead-letter queue and human alert.
 
-* Jobs persisted with idempotency tokens.
+Storage cleanup: quarantine before permanent delete; retention enforcement per plan.
 
-* Worker retries: exponential backoff with max attempts; on repeated failure, move to dead-letter queue and surface helpful recovery steps in UI.
+Backups: automated DB backups + periodic test restores; media snapshots for paid users.
 
-* Storage cleanup: quarantine retention before deletion; allow admin forced-restore within 48 hours.
+Incident response: documented runbooks and on-call rotation.
 
----
+Notes & Trade-offs (explicit)
 
-## **Notes & Trade-offs**
+Vercel workers: fast TTM, but monitor cost vs. dedicated render infra. Use Vercel for MVP; move to dedicated containers (GKE/Cloud Run) if throughput/cost warrants.
 
-* **Use Vercel workers for speed vs. dedicated render cluster for heavy loads.** Start with Vercel for time-to-market; move to dedicated workers if throughput/cost becomes an issue.
+Fal.ai dependency: store model metadata and be ready to swap providers. Use abstraction layer for model calls to limit vendor lock-in.
 
-* **Fal.ai managed models speed development** but lock you into their rate limits and pricing; store model metadata so you can swap to open-source or other providers later.
+Deterministic FFmpeg path: essential fallback. Keep exhaustive FFmpeg templates and test vectors.
 
-* **FFmpeg fallback is essential** — some Fal.ai features may be limited; guarantee a deterministic FFmpeg path for all key transforms.
+Final deliverables from this plan
 
----
+Secure, working MVP in staging with full E2E pipeline.
 
-## **Final deliverables from this plan**
+CI/CD with security gates and nightly E2E.
 
-* Working MVP in staging that completes full pipeline.
+Monitoring, cost controls, and runbook for production readiness.
 
-* CI and backup \+ monitoring.
+Acceptance test suite and scheduled pentest before broad rollout.
 
-* Documented runbook and cost controls.
+Security Checklist (quick highlights to confirm)
 
-* Acceptance test suite that runs nightly.
+IaC PR review + drift detection.
 
+Secrets manager + rotation.
+
+RLS across DB.
+
+Signed URLs for media.
+
+WAF + rate limiting.
+
+Model integration layer with input sanitization & cost logging.
+
+Dead-letter queues & alerts.
+
+Backups + tested restores.
+
+Pen test scheduled and remediations tracked.
+
+References
+
+Primary spec: file:///mnt/data/MASTER SYSTEM SPECIFICATION DOCUMENT.docx
+
+Design guidance: design-tips.md (used for microcopy & motion).
