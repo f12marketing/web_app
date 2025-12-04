@@ -1,344 +1,351 @@
-# **app-flow-pages-and-roles.md**
+app-flow-pages-and-roles.md — secure, production-ready edition
+1. Site Map (Top-Level Pages Only)
+Public
 
-## **1\. Site Map (Top-Level Pages Only)**
+Landing Page
+Secure, static-first page with no authenticated calls. Introduces the product, pricing, and uses a safe CTA pathway.
 
-### **Public**
+Auth Pages (Clerk)
 
-* **Landing Page**  
-   Overview, feature highlights, pricing, CTA to sign up.
+Login
 
-* **Auth Pages (Clerk)**
+Signup
 
-  * Login
+Password reset
 
-  * Signup
+Email verification
+All sensitive authentication handled exclusively by Clerk. No password forms or session cookies handled by your servers.
 
-  * Password reset
+Authenticated
 
-  * Email verification
+Dashboard
+Project list, thumbnails, statuses.
+Security: all queries RLS-scoped, no client-side filtering.
 
-### **Authenticated**
+Project Workspace (Continuous Scroll)
+Main creation environment.
+Security:
 
-* **Dashboard**  
-   List of user projects, statuses, thumbnails.
+All media loaded through short-lived signed URLs only
 
-* **Project Workspace (Continuous Scroll)**  
-   The full creative pipeline in a single scroll:
+Each section fetches only project-scoped data
 
-  1. Idea
+No public or guessable file paths
 
-  2. Script
+Includes the full pipeline:
+Idea → Script → Scenes → Images → Clips → Transitions → Music → Voice-over → Captions → Preview → Final Render
 
-  3. Scenes
+Billing & Account Settings
+Stripe-hosted billing; no card data hits your backend.
+Security:
 
-  4. Images
+Webhooks signed and verified
 
-  5. Clips
+Plan gating validated server-side
 
-  6. Transitions
+Retention settings require explicit user consent
 
-  7. Music
+Downloads / Final Files Page
+Shows only signed URLs with 60–300s TTL.
+No directory browsing, no persistent public links.
 
-  8. Voice-over
+Admin Panel (Internal-only)
+Exists for ops teams.
+Hidden from UI, protected by SSO group membership + short-lived session tokens. Users do not reach this interface.
 
-  9. Captions
+2. Purpose of Each Page (One Line Each)
 
-  10. Preview
+Landing Page — Teach value quickly and drive safe, frictionless signup.
 
-  11. Final Render
+Login / Signup — Provide secure access via Clerk (passwordless optional).
 
-* **Billing & Account Settings** (Stripe \+ Clerk)  
-   Upgrade plan, payment method, invoices.
+Dashboard — Manage all projects with strict isolation.
 
-* **Downloads / Final Files Page** (optional redirect)  
-   Direct link to final rendered videos.
+Project Workspace — Edit every stage of the pipeline with full auditability.
 
-* **(Internal-only, not user-facing): Admin Panel**  
-   *Exists for business operations, but per your instruction, regular users do not access it.*
+Billing & Account Settings — Safely manage subscriptions, receipts, and retention.
 
----
+Downloads Page — Provide secure, expiring access to final renders.
 
-## **2\. Purpose of Each Page (One Line Each)**
+3. User Roles & Access Levels
+User Roles
 
-* **Landing Page**  
-   Introduce the value, build confidence, drive signup.
+There is only one role: User.
+No customer-facing admin privileges.
 
-* **Login / Signup**  
-   Allow secure access via Clerk.
+Plan tiers define access, not permissions.
 
-* **Dashboard**  
-   Central hub to create, manage, duplicate, or delete projects.
+Plan-Based Capabilities (from master spec)
+Capability	Free	Plus	Pro
+Watermark	Yes	Optional	No
+Models	Cheapest only	Mid-tier	Full
+Clip Queue Priority	Low	Medium	High
+Permanent Retention	No	Yes	Yes
+Draft Retention	15 days	Permanent	Permanent
+Final Video Quality	720p	720p–1080p	1080p
+Security Enforcement
 
-* **Project Workspace**  
-   The entire creative production pipeline in a single flow, enabling users to edit every step.
+All plan rules enforced server-side — never rely solely on UI gating.
 
-* **Billing & Account Settings**  
-   Manage subscription tier, credits, receipts, and upgrades.
+All Supabase queries scoped via RLS policies bound to auth.uid.
 
-* **Downloads Page**  
-   Provide an uncluttered location for final video access.
+Admin panel access requires SSO + IP allowlist (optional).
 
----
+No ability for users to change plan restrictions or spoof model levels.
 
-## **3\. User Roles & Access Levels**
+4. Primary User Journeys (Best-practice version)
+A. Creating a New Video
 
-### **User Roles**
+Dashboard → Create Project (server-side validation)
 
-**There is only one user role: “User”.**  
- All users (Free, Plus, Pro) share the same system-wide permissions, but their **plan tier** controls limits and features.
+Enter idea → script & scenes generated securely (sanitized text → Fal.ai)
 
-### **Plan-Based Capabilities**
+Move down the pipeline: images → clips → transitions → music → VO → captions → render
 
-| Capability | Free | Plus | Pro |
-| ----- | ----- | ----- | ----- |
-| Watermark | Yes | Optional | No |
-| Models | Cheapest only | Medium tier | Full set |
-| Clip Queue Priority | Low | Medium | High |
-| Permanent Retention | No | Yes | Yes |
-| Draft Retention | 15 days | Permanent | Permanent |
-| Final Video Quality | 720p | 720p–1080p | 1080p |
+Security notes:
 
-(From the MASTER SPEC DOCUMENT)
+All model inputs sanitized before API call.
 
-### **Permissions Rules**
+All assets created under project-scoped storage paths.
 
-* Users can only view/manage their own projects.
+B. Editing a Specific Stage
 
-* Users cannot access admin panel or other users’ data.
+Scroll to stage
 
-* Users cannot override tier limits.
+Edit inputs
 
----
+Regenerate output
 
-## **4\. Primary User Journeys (max 3 steps each)**
+Security notes:
 
-### **A. Creating a New Video**
+Every regenerate event creates a new version, stored immutably.
 
-1. Dashboard → “Create Project”
+Version rollback recorded in audit logs.
 
-2. Enter idea → System generates script and scenes
+C. Rendering the Final Video
 
-3. Scroll through pipeline: generate images → clips → transitions → music → voice-over → captions → final render
+Scroll to Final Render
 
-### **B. Editing a Specific Stage**
+“Render Video”
 
-1. Scroll to stage (e.g., Scenes → Images → Clips)
+Background worker processes job → signed URL delivered
 
-2. Modify narration / prompts / model selection
+Security notes:
 
-3. Regenerate and continue down the flow
+Jobs use idempotency tokens
 
-### **C. Rendering the Final Video**
+Worker cannot access projects it doesn’t own
 
-1. Reach “Final Render” section
+Render artifacts stored encrypted
 
-2. Click “Render Video”
+D. Managing Subscription
 
-3. Receive real-time updates → Download final MP4
+Account Settings
 
-### **D. Managing Subscription**
+Upgrade → Stripe checkout
 
-1. Account Settings
+Updated plan applied server-side
 
-2. View plan → Click “Upgrade” → Stripe checkout
+Security notes:
 
-3. Updated tier unlocks features instantly
+Stripe webhook verification mandatory
 
-### **E. Returning to an Existing Project**
+Billing state changes logged in audit logs
 
-1. Dashboard → select project
+E. Returning to an Existing Project
 
-2. Continue from last scrolled section
+Dashboard → project
 
-3. Render or revise any stage
+Resume from last position
 
----
+Edit or render
 
-## **5\. Detailed User Flow (Full Experience)**
+Security notes:
 
-(Aligned with the linear scroll in the specification)
+If a user changes upstream sections, downstream data is invalidated with a confirmation modal.
 
-### **1\. Landing → Signup**
+5. Detailed User Flow (Security-enhanced)
+1. Landing → Signup
 
-* User views landing page
+Landing page loads no user data, no cookies beyond analytics (strict, anonymous).
 
-* Clicks "Get Started"
+Signup via Clerk → redirect to Dashboard.
 
-* Completes signup via Clerk
+2. Dashboard
 
-* Redirect: Dashboard
+Fetch only the authenticated user’s projects (RLS enforced).
 
-### **2\. Dashboard**
+Each project tile uses signed thumbnail URLs to prevent URL leakage.
 
-* User sees project list with thumbnails \+ statuses
+3. Workspace Sections
 
-* Can: create, rename, duplicate, delete
+(the continuous-scroll workflow remains unchanged, but with security implications added)
 
-* Click project → enters workspace
+Idea Section
 
-### **3\. Workspace Sections (Continuous Scroll)**
+Input sanitized before saving.
 
-Each is a “chapter” that flows seamlessly into the next:
+Settings restricted to allowed enums.
 
-#### **1\. Idea Section**
+CTA “Generate Script” calls backend to generate securely.
 
-* Input: idea text field
+Script
 
-* Settings: duration, aspect ratio, quality
+Uses Fal.ai through a secure integration layer.
 
-* CTA: “Generate Script”
+Script stored in project-scoped DB tables.
 
-#### **2\. Script**
+Regeneration increments version IDs.
 
-* Autogenerated via Fal.ai OpenRouter
+Scenes
 
-* User can edit or regenerate
+Scenes stored with redaction flags (if PII detected).
 
-* CTA: “Generate Scenes”
+Edits autosaved with safe HTML stripping.
 
-#### **3\. Scenes**
+Images
 
-* 20-scene breakdown (scaled by duration)
+User selects model; model access enforced server-side.
 
-* Edit narration / image prompt / animation prompt
+Generated images stored via backend-upload → Backblaze.
 
-* CTA: “Generate Images”
+Signed URLs generated when requested, not stored persistently.
 
-#### **4\. Images**
+Clips
 
-* Select Fal.ai image model
+Clips generated via Fal.ai or FFmpeg fallback.
 
-* Generate per scene, upscale, variations
+Workers run in sandboxed environments.
 
-* Carousel UI
+Metadata (duration, model, checksum) stored for auditability.
 
-* CTA: “Generate Clips”
+Transitions
 
-#### **5\. Clips**
+Static list of 31 templates (safe, deterministic).
 
-* Per-scene video model selection
+No remote code execution or dynamic templating.
 
-* 3s duration, motion strength settings
+Hover previews served via cached small assets.
 
-* Fal.ai API or FFmpeg fallback
+Music
 
-* CTA: “Select Transitions”
+Pixabay queries proxied through backend → protects API key.
 
-#### **6\. Transitions**
+Stream-only unless explicitly saved.
 
-* 31 templates (hover previews)
+License metadata stored with track association.
 
-* Change transition per clip junction
+Voice-over
 
-* CTA: “Add Music”
+Uses ElevenLabs via Fal.ai wrapper.
 
-#### **7\. Music**
+Requires clear consent whenever real user voice is cloned or uploaded.
 
-* Pixabay search
+PII stripping applied before TTS call unless user opts in.
 
-* Audition via stream-only player
+Captions
 
-* Auto-sync to project duration
+Auto-generated → editable.
 
-* CTA: “Generate Voice-over”
+SRT format validated before save (reject malicious payloads).
 
-#### **8\. Voice-over**
+Burn-in via FFmpeg inside isolated worker.
 
-* Uses full script → ElevenLabs TTS (via Fal.ai wrapper)
+Preview
 
-* Normalized volume
+Generate 480p preview with strictly limited runtime.
 
-* CTA: “Create Captions”
+Preview cached for 24 hours to reduce worker load.
 
-#### **9\. Captions**
+Final Render
 
-* Auto-generated
+Background worker pulls job → fetches assets via scoped signed URLs.
 
-* User edits text
+Produces final MP4 → uploaded via server-side only.
 
-* Style presets (Modern, Bold, Cinematic, TikTok, Minimal)
+Expiring signed download URL sent to user.
 
-* Burn-in toggle
+4. Return Flow (Security Notes)
 
-* CTA: “Render Preview”
+Downstream invalidation prompts:
+“This will regenerate clips/images. Continue?”
 
-#### **10\. Preview**
+All old versions kept in immutable version history.
 
-* 480p low-res quick render
+6. Interaction Patterns (Security & UX)
+Navigation
 
-* Loop playback
+Vertical-only scroll reduces complexity.
 
-* CTA: “Render Final Video”
+Sticky header contains non-sensitive navigation shortcuts.
 
-#### **11\. Final Render**
+Versioning
 
-* Spins up background worker
+All versions immutable; each has version_id, created_at, created_by.
 
-* Real-time progress updates
+Reverting creates a new version rather than overwriting.
 
-* Final MP4 saved to Backblaze
+Saving
 
-* Download button \+ share options
+Autosave uses debounced server-side updates.
 
-### **4\. Return Flow**
+No client-side-only drafts.
 
-* User can revisit any stage at any time
+Error Handling
 
-* Changing any step invalidates downstream assets
+Never expose model errors directly.
 
-* System politely warns \+ offers regeneration
+Show user-friendly messages:
 
----
+“Something paused — let’s retry together.”
 
-## **6\. Interaction Patterns (High-Level Rules)**
+Model Constraints
 
-### **Navigation**
+UI disables unauthorized models; back-end enforces final say.
 
-* Workspace uses vertical scroll only
+Tooltips explain upgrade requirements.
 
-* Sticky header with quick jumps:
+7. Data Access Rules (Security-critical)
+Database
 
-  * Script, Scenes, Images, Clips, Transitions, Music, VO, Captions, Preview, Render
+All Supabase queries constrained by:
 
-### **Versioning**
+RLS with auth.uid()
 
-* Every regenerate action produces a new version
+Parameterized queries
 
-* User can revert anytime
+No client-provided IDs without server verification
 
-* Versions visible in side panel (drawer)
+Media
 
-### **Saving**
+All media URLs are:
 
-* Autosave on every edit
+Signed (5–10 min TTL)
 
-* Manual save not required
+Single-use preferred for sensitive data
 
-### **Error Handling**
+Generated per-request (never stored long-term)
 
-* Friendly messages following emotional guidelines:
+Workers
 
-   “Looks like something paused. Let’s retry together.”
+Worker jobs include:
 
-### **Model Constraints**
+User ID
 
-* UI greys out unavailable models depending on tier
+Project ID
 
-* Tooltip explains why
+Idempotency token
 
----
+Limited-scoped credentials
 
-## **7\. Data Access Rules**
+Workers can never modify or even reference another user’s project.
 
-* All Supabase queries scoped by `user_id`
+Realtime
 
-* All media URLs via signed Backblaze URLs
+Supabase Realtime or Pusher channels scoped to project_id + user_id.
 
-* Real-time updates via Supabase Realtime or Pusher
+All subscriptions verified by server-generated access tokens.
 
-* Queue jobs can only modify projects they belong to
+End of app-flow-pages-and-roles.md
 
----
-
-# **End of app-flow-pages-and-roles.md**
-
+Security-Hardened • UX-Optimized • Production-Ready
