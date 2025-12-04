@@ -1,582 +1,309 @@
-design-guidelines.md
-1. Emotional Thesis
+design-guidelines.md — security-hardened, production-ready
+
+Emotional thesis (unchanged)
 Feels like a creative command center — calm, confident, and empowering.
- A space where anyone can create professional videos effortlessly, guided by warm motion, clear hierarchy, and interfaces that feel supportive rather than demanding.
+Users create pro-quality videos effortlessly and safely. UI must feel supportive and never expose technical details about data, models, or infra.
 
-2. Typography System
-Philosophy
-Strong, confident type conveys power.
+1. Emotional Thesis (implementation notes)
 
+Visual: confident accents, generous whitespace, clear hierarchy.
 
-Generous spacing and soft contrast convey ease.
+Motion: gentle, purposeful — communicates progress and forgiveness.
 
+Security implication: hide sensitive system details from users; show only friendly, actionable messages. (E.g., “We’re optimizing your clip — hang tight” → no low-level error codes.)
 
-Modular scale ensures predictability and visual rhythm.
+2. Typography System (production-ready)
+Philosophy (concise)
 
+Use strong type for control; generous spacing for ease.
 
-≥1.5× line-height everywhere for readability.
+All text must be accessible (AA+). Use rem-based sizes for scaling.
 
+Use system-font fallback stack for performance and privacy.
 
 Primary Typeface
-Inter (geometric sans)
- Reason: clean, modern, and neutral — ideal for clarity and control.
-Typographic Hierarchy
-Style
-Size
-Weight
-Line Height
-Usage
-H1
-40px
-700
-1.3
-Section headers (“Script”, “Scenes”)
-H2
-32px
-600
-1.35
-Sub-sections
-H3
-24px
-600
-1.4
-Labeled blocks (“Voice-over”, “Captions”)
-H4
-20px
-500
-1.45
-Card titles, panel headings
-Body
-16px
-400–500
-1.55
-Standard text everywhere
-Caption
-13px
-400
-1.6
-Timestamps, metadata, tooltips
 
-Additional Notes
-Avoid long paragraphs; break with spacing.
+Inter (variable font). Fallback: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial.
 
+Typographic tokens (CSS-ready)
+:root{
+  --type-h1: 2.5rem; /* 40px */
+  --type-h2: 2rem;   /* 32px */
+  --type-h3: 1.5rem; /* 24px */
+  --type-h4: 1.25rem;/* 20px */
+  --type-body: 1rem; /* 16px */
+  --type-caption: 0.8125rem; /* 13px */
+  --line-height-body: 1.55;
+}
 
-Maintain consistent vertical rhythm: baseline grid of 8px.
+Hierarchy & rules
 
+Max line length: 65–75 chars for readable blocks.
 
-Always ensure AA+ contrast.
+Headings use font-weight: 600–700. Body 400–500.
 
+Baseline grid of 8px for vertical rhythm.
 
+3. Color System (design tokens + accessibility)
+Palette (tokens)
+--bg: #F7F8FA;
+--surface: #FFFFFF;
+--card-border: #E3E6EA;
+--text-primary: #1A1F36;
+--text-secondary: #4E5566;
+--text-tertiary: #9AA1AF;
+--accent: #3B82F6;
+--accent-hover: #2563EB;
+--success: #10B981;
+--warning: #F59E0B;
+--error: #EF4444;
+--info: #0EA5E9;
 
-3. Color System
-Color Philosophy
-Colors should feel empowering, modern, and calm — not loud.
+Accessibility rules
 
+Contrast: body text ≥ 4.5:1 vs background. Headings ≥ 3:1. Enforce via CI color-contrast checks.
 
-Muted neutrals + a confident accent color.
+Provide alt palettes for color-blind-safe variants and test color maps with tools.
 
+Dark mode: toggle and persist preference; use token overrides rather than hard-coded colors.
 
-Strict contrast rules to support ease of use.
+4. Spacing & Layout System (practical)
 
+8px grid tokens: 4px base, then 8 / 16 / 24 / 32 / 48 / 64.
 
-Palette
-Primary Neutral Base
-Background: #F7F8FA
+Container widths and responsive breakpoints:
 
+mobile <640px — stacked, full-width cards
 
-Surface: #FFFFFF
+tablet 640–1024px — 2-column where useful
 
+desktop >1024px — centered main column (820–1040px) + sticky right actions
 
-Card Border: #E3E6EA
+Cards: border-radius 10px, shadow 0 2px 6px rgba(0,0,0,0.06).
 
+5. Buttons & Interactive Components (secure & accessible)
+Tokens & CSS
+--btn-radius: 8px;
+--btn-padding: 12px 16px;
+--btn-primary-bg: var(--accent);
+--btn-primary-hover: var(--accent-hover);
+--focus-ring: 0 0 0 3px rgba(59,130,246,0.18);
 
-Soft Shadow: rgba(0, 0, 0, 0.06)
+Accessibility & behavior
 
+All interactive elements must have keyboard focus and visible focus ring.
 
-Text Colors
-Primary text: #1A1F36
+Prefer semantic <button> elements; do not rely on click-only handlers.
 
+Disable buttons during long-running operations and provide progress feedback.
 
-Secondary text: #4E5566
+Confirm destructive actions with a clear modal (undo available where possible).
 
+6. Motion & Interaction Principles (safe & performant)
 
-Tertiary text: #9AA1AF
+Durations: 150–250ms for most transitions; hover 90–120ms; modal 200–300ms.
 
+Respect prefers-reduced-motion—provide alternative non-animated feedback (progress bar).
 
-Accent Color (Empowerment Blue)
-Primary accent: #3B82F6
+Motion should indicate cause → effect (e.g., “generating clip” → progress).
 
+For long jobs, show incremental progress + ETA when possible; never show raw system logs.
 
-Primary accent (hover): #2563EB
+7. Component Library (detailed & implementation-safe)
 
+Provide each component as a single source of truth (design token + small usage examples). Components must include ARIA attributes and keyboard behavior.
 
-Signifies control, clarity, action.
+Scene Card (spec)
 
+Structure: header (H4) → narration (editable) → thumbnail (16:9) → actions row.
 
-Support Colors
-Success: #10B981
+States: default / hover / selected / loading / error.
 
+Loading state: skeleton + accessible label like aria-busy="true" aria-live="polite".
 
-Warning: #F59E0B
+Image Carousel
 
+Thumbnails 120×120, rounded 8px.
 
-Error: #EF4444
+Use role="listbox" + aria-activedescendant for selection.
 
+Lazy-load images; load priority for selected/nearby images only.
 
-Info: #0EA5E9
+Clip Card
 
+Preview: muted loop with playsinline and preload="metadata".
 
-Dark Mode Palette (future optional)
-Background: #0D0F12
+Provide fallback poster image for devices that block autoplay.
 
+Store preview as low-res 480p to reduce bandwidth.
 
-Surface: #1A1D21
+Transition Selector
 
+Visual tiles with 1s preview loop. Cache previews in CDN with TTL to avoid re-renders.
 
-Primary text: #E6E8EB
+Music Browser & Playback
 
+Stream-only by default. If saving is allowed, require explicit consent and store license metadata.
 
-Card border: #2A2E34
+Display license and attribution clearly beside each track.
 
+Caption Editor
 
-Light/Dark Contrast
-Always maintain WCAG AA+:
-Body text contrast ≥ 4.5:1
+Split view: timecodes (left) + text editor (right).
 
+Provide keyboard shortcuts for navigation and editing.
 
-Large headings ≥ 3:1
+Export SRT easily; support accessibility for screen readers.
 
+8. Voice & Tone (microcopy + privacy)
 
+Microcopy: empowering, short, and actionable. Avoid system jargon (no error stack traces).
 
-4. Spacing & Layout System
-8pt Grid
-All spacing increments follow 8px, 16px, 24px, 32px, 48px, 64px.
-Page Structure
-Continuous Scroll Layout (per master spec):
- Idea → Script → Scenes → Images → Clips → Transitions → Music → Voice-over → Captions → Preview → Final Render
-
-
-Section containers:
-
-
-Padding: 32px top, 40px bottom
-
-
-Width: 820–1040px (centered)
-
-
-Cards & Panels
-
-
-Padding: 24px
-
-
-Border radius: 10px
-
-
-Shadow: subtle (0, 2px, 6px, 6% opacity)
-
-
-Breakpoints
-Mobile: stacked layout, 100% width cards
-
-
-Tablet: 2-column grids where relevant
-
-
-Desktop: fixed center column + sidebar for actions when needed
-
-
-
-5. Buttons & Interactive Components
-Buttons
-Primary Button
-Background: #3B82F6
-
-
-Hover: #2563EB
-
-
-Text: white
-
-
-Radius: 8px
-
-
-Padding: 12px 16px
-
-
-Motion: 120ms ease-out subtle lift (translateY -1px)
-
-
-Secondary Button
-Border: 1px solid #E3E6EA
-
-
-Background: white
-
-
-Hover: light gray surface
-
-
-Text: #1A1F36
-
-
-Destructive Button
-Background: #EF4444
-
-
-Hover: #DC2626
-
-
-Dropdowns
-Border: #E3E6EA
-
-
-Surface: white
-
-
-Hover item: #F3F4F6
-
-
-Transition: fade + 4px downward slide
-
-
-Arrow: soft rotation on expand (90ms ease)
-
-
-Inputs / Textareas
-Border: #E3E6EA default → #3B82F6 focus
-
-
-Focus ring: 2px inner glow, #BFDBFE
-
-
-Padding: 12px
-
-
-Radius: 8px
-
-
-Placeholder: #9AA1AF
-
-
-
-6. Motion & Interaction Principles
-Based on “Kindness in Design” from design-tips.md.
-Duration
-UI motion: 150–250ms
-
-
-Hover effects: 90–120ms
-
-
-Modal transitions: 200–300ms, spring easing
-
-
-Tone
-Confident, smooth, never flashy
-
-
-Animations act as guides, not decorations
-
-
-Always reinforce clarity, never distract
-
-
-Microinteractions
-Hover lifts: 1–2px upward shift, low opacity shadow
-
-
-Button hover: subtle scaling (1.02–1.04)
-
-
-Section load: soft fade + upward 8px slide
-
-
-Object creation (image/clip): “materialize” fade-in from 90% scale
-
-
-Deletion: collapses height smoothly → fade-out
-
-
-Empty States
-Warm, encouraging copy
-
-
-Use illustrations or soft icons
-
+Privacy copy: when user generates voice using a sample or an uploaded voice, show a consent modal describing retention and usage. Provide explicit opt-in and “delete voice model” controls.
 
 Example:
 
+“We’ll generate a voice track from your script. By creating a custom voice, you consent to storing and using this voice for this project. You can delete it anytime under Project → Settings.”
 
- “Start with an idea — you’ll be amazed how far we can take it together.”
+9. System Consistency & Developer Handoff
 
+Use shadcn/ui tokens and component library. Export Figma or tokens JSON for engineering.
 
+Maintain a living style guide that includes all tokens and component usage examples.
 
+Version components with changelogs; deprecate gracefully.
 
-7. Component Library
-Scene Card
-Header: H4
+10. Accessibility Guidelines (strict)
 
+Keyboard-first navigation; tab order documented.
 
-Body: narration text + image prompt
+ARIA roles and states: dialogs, tooltips, sliders, listboxes.
 
+Focus management on modal open/close.
 
-Thumbnail: 16:9 rounded
+Screen reader friendly labels for media controls.
 
+Captions must be toggleable and readable at small sizes (WCAG AA).
 
-Actions: regenerate, replace, edit
+Conduct accessibility audits (axe, manual) before each major release.
 
+11. Privacy, Data & Security Design Notes (NEW — required)
 
-Hover: border highlight using accent color
+Design decisions must embed privacy and security controls:
 
+Media handling
 
-Image Carousel
-Thumbnails: 120×120, radius 8px
+All media served via short-lived signed URLs; never expose permanent public links in the UI.
 
+Do not render raw storage URLs client-side — always request signed URLs from backend.
 
-Selected state: 2px accent border
+Apply bandwidth-friendly previews (480p) and lazy load full-res only after explicit user action.
 
+Model prompts & PII
 
-Scroll motion: natural, physics-based
+Sanitize and truncate long prompts client-side; strip any HTML or control characters.
 
+Provide a PII-detection step on the backend before sending prompts to Fal.ai and flag redaction opportunities.
 
-Clip Card
-Preview: muted auto-play loop
+If PII is detected, prompt user to redact or opt into secure processing (explain retention and access controls).
 
+Consent & likeness
 
-Metadata: duration, model used
+When TTS or image generation uses a real person’s voice/image, require explicit consent and check legal footage (terms & conditions). Store consent record in audit_logs.
 
+Retention & deletion
 
-Refresh icon: rotates 90° on hover
+Default drafts auto-delete after 15 days (Free) unless user explicitly changes retention.
 
+Provide clear UI for "Delete project" with 48-hour quarantine and a recorded delete action in audit_logs.
 
-Transition Selector
-31 presets (per spec)
+Allow users to request data export (projects, captions, scripts) and deletion per GDPR/CCPA.
 
+Logging & telemetry
 
-Hover: play 1s loop
+Mask PII in application logs. Do not log prompt text verbatim unless user has opted into sharing prompt history for improvements; if stored, encrypt at rest and record consent.
 
+Usage logs should store request hash (non-reversible) for audit without storing raw prompt text.
 
-Selected: blue outline
+Legal & licensing UX
 
+Show track license details from Pixabay and require acceptance where applicable.
 
-Music Browser
-Horizontal cards with waveform preview
+Provide a “Model usage” section explaining which models were used (friendly, non-technical) and the retained artifacts.
 
+12. Emotional Audit Checklist (operationalized)
 
-Stream-only playback
+Before release, run this checklist and capture results in release notes:
 
+Does the main task complete in ≤ 3 obvious steps?
 
-CTA: “Use Track”
+Are all long-running operations providing progressive feedback?
 
+Does the UI avoid technical error exposure?
 
-Caption Editor
-Left side: timecode list
+Have PII & consent checks been performed for TTS / likeness / uploads?
 
+Are signed URLs and RLS validated in staging?
 
-Right side: editable text
+13. Technical QA Checklist (concrete)
 
+Export design tokens and validate them in a token test harness.
 
-Style presets laid out visually (Modern, Bold, Cinematic, Minimal)
+Color contrast tests automated in CI.
 
+Prefers-reduced-motion mode respected.
 
+All components have keyboard + screen reader tests.
 
-8. Voice & Tone (Microcopy Guidelines)
-Keywords
-Empowering · Friendly · Clear · Calm · Encouraging
-Do
-Celebrate progress (“Scene ready!”)
+Signed URL access tests and media TTL tests.
 
+Penetration test items for UI surface: XSS, CSRF, clickjacking mitigations.
 
-Use active voice
+14. Design Snapshot (ready-to-use tokens)
 
+Colors
 
-Keep messages short
+--bg: #F7F8FA
+--surface: #FFFFFF
+--card-border: #E3E6EA
+--text-primary: #1A1F36
+--accent: #3B82F6
+--accent-hover: #2563EB
 
 
-Offer recovery paths
-
-
-Don’t
-Blame the user
-
-
-Use technical jargon unless necessary
-
-
-Over-explain
-
-
-Examples
-Onboarding:
-“Tell us your idea. We’ll take it from here.”
-Success message:
-“Your clip is ready — looking great.”
-Error message:
-“Something hiccupped. Let’s try that again together.”
-
-9. System Consistency
-Components follow shadcn/ui architecture.
-
-
-All paddings and radii based on 8pt grid.
-
-
-All headings use Inter semibold/medium.
-
-
-All interactive items have hover, focus, and active states.
-
-
-All modals behave the same (fade + slide).
-
-
-All scenes/images/clips use the same card structure for recognition.
-
-
-
-10. Accessibility Guidelines
-Full keyboard navigation (tab order, space/enter activation).
-
-
-ARIA roles for dialog, listbox, menus, sliders.
-
-
-Focus ring always visible and never removed.
-
-
-Captions editor supports screen readers.
-
-
-Color contrast AA+ minimum.
-
-
-Avoid motion-triggered discomfort:
-
-
-Reduce motion mode if OS prefers-reduced-motion is active.
-
-
-
-11. Emotional Audit Checklist
-Use this before shipping any screen or feature:
-Does the interface make the user feel empowered?
-
-
-Is everything clear at a glance?
-
-
-Is the UI uncluttered, with generous spacing?
-
-
-Does motion feel supportive and purposeful?
-
-
-Does microcopy feel encouraging, not mechanical?
-
-
-Does the visual hierarchy reduce anxiety?
-
-
-If the user is tired or overwhelmed, would this still feel approachable?
-
-
-
-12. Technical QA Checklist
-Typography sizes align to 8pt rhythm.
-
-
-All contrast ratios meet AA+.
-
-
-Buttons have distinct hover, focus, active states.
-
-
-Motion durations stay within 150–300ms.
-
-
-Dropdowns/menu components follow consistent patterns.
-
-
-Modals and overlay layers use correct z-index structure.
-
-
-Captions remain readable at all aspect ratios.
-
-
-
-13. Adaptive System Memory
-If future products are created:
-Reuse accent color + typographic scale for brand consistency.
-
-
-Preserve interaction tone (calm, empowering).
-
-
-Maintain the same spacing system.
-
-
-
-14. Design Snapshot
-Color Palette (Hex Codes)
-Background: #F7F8FA
-Surface: #FFFFFF
-Card Border: #E3E6EA
-Primary Text: #1A1F36
-Secondary Text: #4E5566
-Tertiary Text: #9AA1AF
-Accent Blue: #3B82F6
-Accent Blue Hover: #2563EB
-Success: #10B981
-Warning: #F59E0B
-Error: #EF4444
-Info: #0EA5E9
-
-Typographic Scale
 Type
-Size
-Weight
-H1
-40px
-700
-H2
-32px
-600
-H3
-24px
-600
-H4
-20px
-500
-Body
-16px
-400–500
-Caption
-13px
-400
+H1 40px / 700
+H2 32px / 600
+H3 24px / 600
+H4 20px / 500
+Body 16px / 400–500
+Caption 13px / 400
 
-Spacing System
-8pt grid
+Spacing
+8px grid; card padding 24px; section padding 32–40px.
 
+15. Handoff & Versioning
 
-Section padding: 32–40px
+Publish a versioned tokens JSON + component catalog to the repo (/design/system/tokens.json) and link Figma library.
 
+When design tokens change, increment semantic version, run visual regression tests, and update changelog.
 
-Card padding: 24px
+16. Design Integrity Review (concrete improvement)
 
+Microinteraction suggestion: during clip generation, show a heartbeat micro-animation with incremental steps (Script → Scenes → Clips) plus a visible estimated time. Provide “notify me” toggle and optional email/push notification so users don’t need to keep the app open.
 
-Button padding: 12×16px
+17. Next steps (practical deliverables I can provide)
 
+Export tokens JSON and a simple CSS variables file.
 
-Emotional Thesis
-Feels like a creative command center — calm, confident, empowering.
+Produce a Figma-ready component sheet (SVGs & tokens).
 
-Design Integrity Review
-The system successfully blends empowerment (bold accents, confident type) with ease (soft surfaces, gentle motion, clear hierarchy). The emotional tone and technical rules align well.
- One area to enhance:
- Add subtle “reaction” microinteractions during long waits (e.g., generating video clips) to reassure users and reduce perceived effort.
+Create an accessibility test checklist and Lighthouse preset for CI.
 
-End of design-guidelines.md
+Create a short UI copy deck (onboarding, errors, success) with localized variants.
 
+Files I referenced (local paths)
+
+Design prompt & tips: /mnt/data/design-tips.md.
+
+Master system spec: /mnt/data/MASTER SYSTEM SPECIFICATION DOCUMENT.docx.
